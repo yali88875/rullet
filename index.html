@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>스마트 이벤트 돌림판</title>
+  <!-- Tailwind CSS 최신 CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .wheel-shadow {
+      box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.25), 0 4px 10px -2px rgba(0, 0, 0, 0.1);
+    }
+    /* 모바일 세로 뷰 최적화 컨테이너 */
+    .mobile-screen {
+      max-width: 440px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: #f8fafc;
+      box-shadow: 0 0 25px rgba(0,0,0,0.06);
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- 세로형 메인 뷰포트 컨테이너 -->
+  <div class="mobile-screen relative pb-20">
+    
+    <!-- 상단 헤더 -->
+    <header class="bg-indigo-600 text-white px-4 py-3.5 sticky top-0 z-30 shadow-sm flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">🎯</span>
+        <h1 class="text-base font-extrabold tracking-tight">이벤트 돌림판</h1>
+      </div>
+      <div id="activeItemBadge" class="text-xs bg-indigo-700/80 text-indigo-100 px-2.5 py-1 rounded-full font-medium">
+        남은 0종류
+      </div>
+    </header>
+
+    <!-- 컨텐츠 영역 -->
+    <main class="flex-1 p-4 overflow-y-auto">
+
+      <!-- ==================== 1. 설정 탭 ==================== -->
+      <section id="section-settings" class="hidden space-y-4">
+        <!-- 신규 상품 등록 폼 -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+          <h2 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
+            <span class="text-indigo-600">➕</span> 새 상품 / 항목 등록
+          </h2>
+
+          <form id="addItemForm" onsubmit="handleAddItem(event)" class="space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">1. 상품명 (종류) *</label>
+              <input type="text" id="inputName" required placeholder="예: 1등 에어팟 / 꽝" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">2. 상품 개수 (재고) *</label>
+                <input type="number" id="inputQuantity" required min="1" max="9999" value="5" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">3. 확률 가중치 *</label>
+                <input type="number" id="inputWeight" required min="1" max="1000" value="10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-400">※ 칸은 모두 균등하게 분할되며, 당첨 확률만 위 가중치 비중에 따라 달라집니다.</p>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">4. 이벤트 내용 / 축하 문구</label>
+              <input type="text" id="inputEventText" placeholder="예: 수령처 안내 데스크에서 교환하세요" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">5. 당첨 이미지 등록 (선택)</label>
+              <div class="flex items-center gap-2.5">
+                <div id="imagePreviewBox" class="w-12 h-12 rounded-xl border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden flex-shrink-0 text-xl">
+                  🎁
+                </div>
+                <div class="flex-1 min-w-0">
+                  <input type="file" id="inputImageFile" accept="image/*" onchange="handleImageSelect(event)" class="text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer w-full">
+                  <p class="text-[10px] text-slate-400 mt-0.5">미등록 시 20종의 귀여운 아이콘 중 무작위 지정</p>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold rounded-xl shadow text-sm transition mt-2">
+              돌림판 항목에 추가
+            </button>
+          </form>
+        </div>
+
+        <!-- 등록 리스트 관리 -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+          <div class="flex items-center justify-between mb-2.5">
+            <h2 class="text-sm font-bold text-slate-800">등록된 항목 관리</h2>
+            <button onclick="restoreDefaultItems()" class="text-xs font-medium text-rose-500 hover:text-rose-700 underline">
+              기본값 복원
+            </button>
+          </div>
+          <div id="settingsItemList" class="divide-y divide-slate-100">
+            <!-- JS 렌더링 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 2. 돌림판 탭 ==================== -->
+      <section id="section-roulette" class="flex flex-col items-center justify-center min-h-[72vh] py-2">
+        
+        <div class="w-full bg-white rounded-2xl p-3 shadow-sm border border-slate-200 flex items-center justify-between text-xs mb-4">
+          <span class="flex items-center gap-1.5 font-bold text-slate-700">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            참여 가능 상품: <span id="rouletteCountText" class="text-indigo-600">0</span>개
+          </span>
+          <span class="text-slate-400 font-medium">약 5초 회전 연출</span>
+        </div>
+
+        <!-- 룰렛 본체 (세로 모바일 화면 폭에 최적화) -->
+        <div class="relative w-full max-w-[330px] aspect-square my-2 flex items-center justify-center select-none">
+          
+          <!-- 상단 12시 핀 바늘 -->
+          <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none drop-shadow-lg">
+            <div class="w-7 h-9 bg-rose-600 rounded-t-sm" style="clip-path: polygon(50% 100%, 0 0, 100% 0);"></div>
+            <div class="w-3.5 h-3.5 bg-rose-800 rounded-full -mt-7 ring-2 ring-white"></div>
+          </div>
+
+          <!-- 룰렛 캔버스 -->
+          <div class="w-full h-full rounded-full border-4 border-white wheel-shadow overflow-hidden bg-white">
+            <canvas id="rouletteCanvas" width="700" height="700" class="w-full h-full block"></canvas>
+          </div>
+
+          <!-- 중앙 허브 버튼 -->
+          <div class="absolute w-14 h-14 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-full shadow-lg border-2 border-white flex items-center justify-center text-amber-900 font-extrabold text-xs tracking-wider z-10 pointer-events-none">
+            START
+          </div>
+        </div>
+
+        <!-- 돌리기 실행 버튼 -->
+        <div class="w-full max-w-[330px] mt-5">
+          <button id="spinBtn" onclick="startSpinAnimation()" class="w-full py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:brightness-105 active:scale-[0.98] text-white font-black text-lg rounded-2xl shadow-lg shadow-amber-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed">
+            돌림판 돌리기! (5초)
+          </button>
+        </div>
+
+        <p class="text-[11px] text-slate-400 text-center mt-3">
+          💡 칸은 모두 동일한 크기이지만, 설정된 확률에 맞춰 정확히 추첨됩니다.
+        </p>
+      </section>
+
+      <!-- ==================== 3. 현황 탭 ==================== -->
+      <section id="section-status" class="hidden space-y-3">
+        <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">실시간 당첨 및 재고 현황</h2>
+            <p class="text-[11px] text-slate-400">당첨 시 재고가 자동으로 차감 반영됩니다.</p>
+          </div>
+          <button onclick="resetWinCountsOnly()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition">
+            기록 초기화
+          </button>
+        </div>
+
+        <!-- 세로 리스트 컨테이너 -->
+        <div id="statusListContainer" class="space-y-2.5">
+          <!-- JS 렌더링 영역: [좌측 이미지/아이콘] - [상품명 및 이벤트] - [총상품수/당첨수] -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 하단 고정 모바일 탭 바 (세로 모드 필수 요소) -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-[440px] mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 grid grid-cols-3 py-1.5 z-40 shadow-lg">
+      <button onclick="switchTab('settings')" id="tabBtn-settings" class="flex flex-col items-center justify-center py-1 text-slate-400 hover:text-indigo-600 transition">
+        <span class="text-lg">⚙️</span>
+        <span class="text-[11px] font-bold mt-0.5">1. 설정</span>
+      </button>
+      <button onclick="switchTab('roulette')" id="tabBtn-roulette" class="flex flex-col items-center justify-center py-1 text-indigo-600 font-bold transition">
+        <span class="text-lg">🎡</span>
+        <span class="text-[11px] font-bold mt-0.5">2. 돌림판</span>
+      </button>
+      <button onclick="switchTab('status')" id="tabBtn-status" class="flex flex-col items-center justify-center py-1 text-slate-400 hover:text-indigo-600 transition">
+        <span class="text-lg">📊</span>
+        <span class="text-[11px] font-bold mt-0.5">3. 현황</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- 당첨 축하 모달 팝업 (가운데 등록 이미지 & 축하문구 노출) -->
+  <div id="winnerModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-[340px] w-full p-6 text-center shadow-2xl border border-amber-200 relative overflow-hidden transform scale-95 transition-all">
+      <div class="inline-block bg-amber-500 text-white font-extrabold text-[11px] px-3 py-1 rounded-full mb-3 tracking-wider">
+        🎉 당첨을 축하합니다! 🎉
+      </div>
+
+      <!-- 설정1에 등록한 이미지 / 기본 아이콘 중앙 노출 -->
+      <div class="my-3 flex justify-center">
+        <div id="modalImageWrapper" class="w-32 h-32 rounded-2xl overflow-hidden border-4 border-amber-300 shadow-md bg-amber-50 flex items-center justify-center">
+          <img id="modalWinnerImg" src="" alt="당첨 이미지" class="w-full h-full object-cover hidden">
+          <span id="modalWinnerIcon" class="text-6xl select-none">🎁</span>
+        </div>
+      </div>
+
+      <h3 id="modalWinnerTitle" class="text-2xl font-black text-slate-800 mt-2">상품명</h3>
+      <p id="modalWinnerEventText" class="text-xs font-semibold text-indigo-600 mt-2 px-3 py-2 bg-indigo-50 rounded-xl min-h-[38px] flex items-center justify-center">
+        이벤트 문구
+      </p>
+
+      <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-500 font-medium px-1">
+        <span>남은 수량: <strong id="modalRemainingCount" class="text-slate-800 font-bold">0</strong>개</span>
+        <span>누적 당첨: <strong id="modalWonCount" class="text-indigo-600 font-bold">0</strong>회</span>
+      </div>
+
+      <button onclick="closeModal()" class="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow transition text-sm">
+        확인
+      </button>
+    </div>
+  </div>
+
+  <!-- [추가] 항목 정보 수정 모달 -->
+  <div id="editModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-[360px] w-full p-5 shadow-2xl border border-slate-200 relative overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
+          <span class="text-indigo-600">✏️</span> 항목 정보 수정
+        </h3>
+        <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-1 text-lg leading-none font-bold">
+          &times;
+        </button>
+      </div>
+
+      <form id="editItemForm" onsubmit="handleSaveEdit(event)" class="space-y-3 mt-3">
+        <input type="hidden" id="editItemId">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">1. 상품명 *</label>
+          <input type="text" id="editInputName" required class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">2. 총 수량(재고) *</label>
+            <input type="number" id="editInputQuantity" required min="1" max="9999" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">3. 확률 가중치 *</label>
+            <input type="number" id="editInputWeight" required min="1" max="1000" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">4. 이벤트 내용 / 안내 문구</label>
+          <input type="text" id="editInputEventText" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">5. 이미지 변경 / 재설정</label>
+          <div class="flex items-center gap-2">
+            <div id="editImagePreviewBox" class="w-11 h-11 rounded-xl border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden flex-shrink-0 text-xl">
+              🎁
+            </div>
+            <div class="flex-1 min-w-0">
+              <input type="file" id="editInputImageFile" accept="image/*" onchange="handleEditImageSelect(event)" class="text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer w-full">
+              <div class="flex items-center gap-2 mt-1">
+                <button type="button" onclick="clearEditImage()" class="text-[10px] text-rose-500 hover:underline">이미지 삭제(아이콘 사용)</button>
+                <button type="button" onclick="randomizeEditIcon()" class="text-[10px] text-indigo-600 hover:underline">아이콘 랜덤 변경</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeEditModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+            취소
+          </button>
+          <button type="submit" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition">
+            수정 완료
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 알림 토스트 UI -->
+  <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg pointer-events-none opacity-0 transition-opacity duration-300 z-50">
+    알림 메시지
+  </div>
+
+  <script>
+    /* ========================================================
+       1. 20종 기본 아이콘 풀 & 색상 팔레트 정의
+       ======================================================== */
+    const ICON_POOL_20 = [
+      '🎁', '☕', '🍰', '🍕', '🍗', 
+      '🍔', '🎟️', '💰', '🏆', '📱', 
+      '🎧', '🧸', '🎮', '✈️', '🍀', 
+      '⭐', '🍬', '🍹', '👑', '💣'
+    ];
+
+    const SLICE_COLORS = [
+      '#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', 
+      '#9B51E0', '#FF9F45', '#00C49F', '#FF6584',
+      '#38B6FF', '#54B435', '#FFA07A', '#20B2AA'
+    ];
+
+    const STORAGE_KEY = 'vertical_smart_roulette_v2';
+
+    // 기본 초기 데이터
+    const INITIAL_ITEMS = [
+      {
+        id: 'item_1',
+        name: '1등 스마트폰',
+        totalQty: 1,
+        wonCount: 0,
+        weight: 5, // 확률 5%
+        eventText: '대박 당첨! 안내 부스에서 즉시 수령하세요.',
+        image: '',
+        icon: '📱'
+      },
+      {
+        id: 'item_2',
+        name: '2등 무선이어폰',
+        totalQty: 3,
+        wonCount: 0,
+        weight: 15, // 확률 15%
+        eventText: '축하합니다! 데스크에서 본인 확인 후 증정합니다.',
+        image: '',
+        icon: '🎧'
+      },
+      {
+        id: 'item_3',
+        name: '3등 커피쿠폰',
+        totalQty: 15,
+        wonCount: 0,
+        weight: 30, // 확률 30%
+        eventText: '모바일 바코드가 문자로 발송됩니다.',
+        image: '',
+        icon: '☕'
+      },
+      {
+        id: 'item_4',
+        name: '꽝 (다음기회에)',
+        totalQty: 9999,
+        wonCount: 0,
+        weight: 50, // 확률 50%
+        eventText: '아쉽지만 다음 번에 다시 도전해주세요!',
+        image: '',
+        icon: '💣'
+      }
+    ];
+
+    let items = [];
+    let currentUploadBase64 = '';
+    let editUploadBase64 = '';
+    let editCurrentIcon = '';
+    let currentWheelAngle = 0; // 라디안
+    let isSpinning = false;
+
+    const canvas = document.getElementById('rouletteCanvas');
+    const ctx = canvas.getContext('2d');
+
+    /* 로컬스토리지 처리 */
+    function loadStorage() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          items = JSON.parse(stored);
+        } catch (e) {
+          items = [...INITIAL_ITEMS];
+        }
+      } else {
+        items = [...INITIAL_ITEMS];
+        saveStorage();
+      }
+    }
+
+    function saveStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      updateActiveBadge();
+    }
+
+    function updateActiveBadge() {
+      const activeCount = getAvailableItems().length;
+      document.getElementById('activeItemBadge').textContent = `참여 가능 ${activeCount}종`;
+      document.getElementById('rouletteCountText').textContent = activeCount;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      setTimeout(() => { toast.style.opacity = '0'; }, 2200);
+    }
+
+    /* 탭 변경 */
+    function switchTab(tab) {
+      if (isSpinning) {
+        showToast('돌림판 회전 중에는 탭을 변경할 수 없습니다.');
+        return;
+      }
+      ['settings', 'roulette', 'status'].forEach(t => {
+        const sec = document.getElementById(`section-${t}`);
+        const btn = document.getElementById(`tabBtn-${t}`);
+        if (t === tab) {
+          sec.classList.remove('hidden');
+          btn.className = 'flex flex-col items-center justify-center py-1 text-indigo-600 font-bold transition';
+        } else {
+          sec.classList.add('hidden');
+          btn.className = 'flex flex-col items-center justify-center py-1 text-slate-400 hover:text-indigo-600 transition';
+        }
+      });
+
+      if (tab === 'settings') renderSettings();
+      if (tab === 'roulette') drawWheel();
+      if (tab === 'status') renderStatus();
+    }
+
+    /* ========================================================
+       2. [설정] 탭 로직 (등록, 20종 랜덤 아이콘 배정)
+       ======================================================== */
+    function handleImageSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        currentUploadBase64 = evt.target.result;
+        const box = document.getElementById('imagePreviewBox');
+        box.innerHTML = `<img src="${currentUploadBase64}" class="w-full h-full object-cover">`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleAddItem(e) {
+      e.preventDefault();
+
+      const name = document.getElementById('inputName').value.trim();
+      const qty = parseInt(document.getElementById('inputQuantity').value, 10);
+      const weight = parseInt(document.getElementById('inputWeight').value, 10);
+      const eventText = document.getElementById('inputEventText').value.trim();
+
+      if (!name) return;
+
+      // 이미지가 없을 경우 20개 아이콘 풀에서 랜덤 지정
+      const randomIcon = ICON_POOL_20[Math.floor(Math.random() * ICON_POOL_20.length)];
+
+      const newItem = {
+        id: 'item_' + Date.now(),
+        name: name,
+        totalQty: isNaN(qty) || qty < 1 ? 1 : qty,
+        wonCount: 0,
+        weight: isNaN(weight) || weight < 1 ? 1 : weight,
+        eventText: eventText || '이벤트 당첨을 진심으로 축하드립니다!',
+        image: currentUploadBase64 || '',
+        icon: randomIcon
+      };
+
+      items.push(newItem);
+      saveStorage();
+      renderSettings();
+      drawWheel();
+
+      // 리셋
+      e.target.reset();
+      currentUploadBase64 = '';
+      document.getElementById('imagePreviewBox').innerHTML = '🎁';
+      showToast(`'${name}' 상품이 추가되었습니다.`);
+    }
+
+    function deleteItem(id) {
+      if (items.length <= 1) {
+        showToast('최소 1개 이상의 항목이 유지되어야 합니다.');
+        return;
+      }
+      items = items.filter(it => it.id !== id);
+      saveStorage();
+      renderSettings();
+      drawWheel();
+      showToast('항목이 삭제되었습니다.');
+    }
+
+    function restoreDefaultItems() {
+      items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
+      saveStorage();
+      renderSettings();
+      drawWheel();
+      showToast('기본 예시 데이터로 복원되었습니다.');
+    }
+
+    function renderSettings() {
+      const container = document.getElementById('settingsItemList');
+      container.innerHTML = '';
+
+      const totalWeight = items.reduce((acc, cur) => acc + (cur.weight || 1), 0);
+
+      items.forEach(item => {
+        const remaining = Math.max(0, item.totalQty - item.wonCount);
+        const percent = ((item.weight / (totalWeight || 1)) * 100).toFixed(1);
+
+        const row = document.createElement('div');
+        row.className = 'py-2.5 flex items-center justify-between gap-2.5 text-xs';
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0 text-lg overflow-hidden">
+              ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : item.icon}
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-slate-800 truncate">${item.name}</span>
+                ${remaining <= 0 ? `<span class="bg-rose-100 text-rose-600 px-1 py-0.2 text-[9px] font-bold rounded">소진</span>` : ''}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">
+                수량: ${item.totalQty}개 (잔여 ${remaining}) | 당첨확률: <strong class="text-indigo-600 font-semibold">${percent}%</strong>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="openEditModal('${item.id}')" class="px-2 py-1 text-[11px] text-indigo-600 hover:bg-indigo-50 rounded-lg font-bold">
+              수정
+            </button>
+            <button onclick="deleteItem('${item.id}')" class="px-2 py-1 text-[11px] text-rose-500 hover:bg-rose-50 rounded-lg font-bold">
+              삭제
+            </button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    /* ========================================================
+       항목 수정(Edit) 모달 제어 로직
+       ======================================================== */
+    function openEditModal(id) {
+      const item = items.find(it => it.id === id);
+      if (!item) return;
+
+      document.getElementById('editItemId').value = item.id;
+      document.getElementById('editInputName').value = item.name;
+      document.getElementById('editInputQuantity').value = item.totalQty;
+      document.getElementById('editInputWeight').value = item.weight;
+      document.getElementById('editInputEventText').value = item.eventText || '';
+      
+      editUploadBase64 = item.image || '';
+      editCurrentIcon = item.icon || ICON_POOL_20[0];
+
+      updateEditPreview();
+      document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').classList.add('hidden');
+      editUploadBase64 = '';
+      editCurrentIcon = '';
+      document.getElementById('editInputImageFile').value = '';
+    }
+
+    function updateEditPreview() {
+      const box = document.getElementById('editImagePreviewBox');
+      if (editUploadBase64) {
+        box.innerHTML = `<img src="${editUploadBase64}" class="w-full h-full object-cover">`;
+      } else {
+        box.innerHTML = editCurrentIcon;
+      }
+    }
+
+    function handleEditImageSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        editUploadBase64 = evt.target.result;
+        updateEditPreview();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearEditImage() {
+      editUploadBase64 = '';
+      document.getElementById('editInputImageFile').value = '';
+      updateEditPreview();
+      showToast('이미지가 해제되어 아이콘으로 대체됩니다.');
+    }
+
+    function randomizeEditIcon() {
+      const randomIcon = ICON_POOL_20[Math.floor(Math.random() * ICON_POOL_20.length)];
+      editCurrentIcon = randomIcon;
+      editUploadBase64 = '';
+      document.getElementById('editInputImageFile').value = '';
+      updateEditPreview();
+      showToast(`아이콘이 '${randomIcon}'(으)로 변경되었습니다.`);
+    }
+
+    function handleSaveEdit(e) {
+      e.preventDefault();
+
+      const id = document.getElementById('editItemId').value;
+      const item = items.find(it => it.id === id);
+      if (!item) return;
+
+      const newName = document.getElementById('editInputName').value.trim();
+      const newQty = parseInt(document.getElementById('editInputQuantity').value, 10);
+      const newWeight = parseInt(document.getElementById('editInputWeight').value, 10);
+      const newEventText = document.getElementById('editInputEventText').value.trim();
+
+      if (!newName) return;
+
+      item.name = newName;
+      item.totalQty = isNaN(newQty) || newQty < 1 ? 1 : newQty;
+      item.weight = isNaN(newWeight) || newWeight < 1 ? 1 : newWeight;
+      item.eventText = newEventText || '이벤트 당첨을 축하드립니다!';
+      item.image = editUploadBase64;
+      item.icon = editCurrentIcon || item.icon;
+
+      saveStorage();
+      renderSettings();
+      drawWheel();
+      renderStatus();
+
+      closeEditModal();
+      showToast(`'${item.name}' 항목이 수정되었습니다.`);
+    }
+
+    /* ========================================================
+       3. [돌림판] 균등 분할 렌더링 + 가중치 확률 기반 5초 회전
+       ======================================================== */
+    function getAvailableItems() {
+      return items.filter(it => it.totalQty > it.wonCount);
+    }
+
+    // [핵심 변경 1] 모든 슬라이스를 동일한 각도로 균등 분할하여 그림
+    function drawWheel() {
+      const activeItems = getAvailableItems();
+      const count = activeItems.length;
+      const width = canvas.width;
+      const height = canvas.height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = width / 2 - 16;
+
+      ctx.clearRect(0, 0, width, height);
+
+      if (count === 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fill();
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 28px Pretendard, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('참여 가능한 상품이 없습니다', centerX, centerY);
+        ctx.restore();
+        return;
+      }
+
+      // 균등 분할 각도 (1/N)
+      const arc = (2 * Math.PI) / count;
+
+      for (let i = 0; i < count; i++) {
+        const item = activeItems[i];
+        const angle = currentWheelAngle + i * arc;
+
+        // 슬라이스 부채꼴
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, angle, angle + arc);
+        ctx.closePath();
+        ctx.fillStyle = SLICE_COLORS[i % SLICE_COLORS.length];
+        ctx.fill();
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+
+        // 텍스트 & 아이콘 표시
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle + arc / 2);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.35)';
+        ctx.shadowBlur = 4;
+        
+        ctx.font = 'bold 24px Pretendard, sans-serif';
+        let label = item.name;
+        if (label.length > 7) label = label.substring(0, 6) + '..';
+
+        // 이미지가 없으면 룰렛 칸에 배정된 아이콘과 함께 표시
+        const displayLabel = item.image ? label : `${item.icon} ${label}`;
+        ctx.fillText(displayLabel, radius - 30, 0);
+
+        ctx.restore();
+        ctx.restore();
+      }
+
+      // 외곽 링 테두리
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* 5초 회전 애니메이션 & 가중치 추첨 */
+    function startSpinAnimation() {
+      if (isSpinning) return;
+      const activeItems = getAvailableItems();
+      if (activeItems.length === 0) {
+        showToast('남은 상품 재고가 없습니다. [설정]에서 수량을 추가해주세요.');
+        return;
+      }
+
+      isSpinning = true;
+      document.getElementById('spinBtn').disabled = true;
+
+      // 1. 확률 가중치(weight)에 따른 당첨 항목 사전 추첨
+      const totalWeight = activeItems.reduce((acc, it) => acc + (it.weight || 1), 0);
+      let rand = Math.random() * totalWeight;
+      let winningIndex = 0;
+      let accWeight = 0;
+
+      for (let i = 0; i < activeItems.length; i++) {
+        accWeight += (activeItems[i].weight || 1);
+        if (rand <= accWeight) {
+          winningIndex = i;
+          break;
+        }
+      }
+      const winner = activeItems[winningIndex];
+
+      // 2. 균등 분할된 칸 중에서 winningIndex 칸이 12시 바늘(1.5 * PI)에 도달하도록 정지 각도 계산
+      const count = activeItems.length;
+      const arc = (2 * Math.PI) / count;
+
+      // 칸의 중앙에 바늘이 서도록 여유폭 설정 (0.2 ~ 0.8)
+      const offsetInArc = arc * (0.25 + Math.random() * 0.5);
+      const winnerCenterAngle = winningIndex * arc + offsetInArc;
+
+      const pointerAngle = 1.5 * Math.PI; // 12시 방향 바늘
+      const fullRotations = 8 * (2 * Math.PI); // 약 8바퀴 고속 회전
+
+      const currentMod = currentWheelAngle % (2 * Math.PI);
+      let finalTargetAngle = currentWheelAngle - currentMod + fullRotations + (pointerAngle - winnerCenterAngle);
+      if (finalTargetAngle <= currentWheelAngle + 6 * 2 * Math.PI) {
+        finalTargetAngle += 2 * Math.PI;
+      }
+
+      const duration = 5000; // 정확히 5초
+      const startTime = performance.now();
+      const initialAngle = currentWheelAngle;
+      const deltaAngle = finalTargetAngle - initialAngle;
+
+      function animate(time) {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // 정밀 감속 이징 (Quintic Ease-Out)
+        const easeOut = 1 - Math.pow(1 - progress, 4.5);
+        currentWheelAngle = initialAngle + deltaAngle * easeOut;
+        drawWheel();
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          document.getElementById('spinBtn').disabled = false;
+          triggerWin(winner);
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    /* 당첨 팝업 처리 */
+    function triggerWin(wonItem) {
+      const target = items.find(it => it.id === wonItem.id);
+      if (target) {
+        target.wonCount += 1;
+        saveStorage();
+      }
+
+      // 폭죽 연출
+      try {
+        confetti({
+          particleCount: 70,
+          spread: 60,
+          origin: { y: 0.65 }
+        });
+      } catch (e) {}
+
+      // 모달에 이미지 또는 20종 랜덤 아이콘 표시
+      const modal = document.getElementById('winnerModal');
+      const imgEl = document.getElementById('modalWinnerImg');
+      const iconEl = document.getElementById('modalWinnerIcon');
+
+      if (target.image) {
+        imgEl.src = target.image;
+        imgEl.classList.remove('hidden');
+        iconEl.classList.add('hidden');
+      } else {
+        imgEl.src = '';
+        imgEl.classList.add('hidden');
+        iconEl.textContent = target.icon || '🎁';
+        iconEl.classList.remove('hidden');
+      }
+
+      document.getElementById('modalWinnerTitle').textContent = target.name;
+      document.getElementById('modalWinnerEventText').textContent = target.eventText || '당첨을 축하드립니다!';
+      document.getElementById('modalRemainingCount').textContent = Math.max(0, target.totalQty - target.wonCount);
+      document.getElementById('modalWonCount').textContent = target.wonCount;
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('winnerModal').classList.add('hidden');
+      drawWheel();
+      updateActiveBadge();
+    }
+
+    /* ========================================================
+       4. [현황] 탭 로직 (세로 리스트 형태: 좌측 이미지/아이콘, 중앙 상품명, 우측 수량)
+       ======================================================== */
+    function renderStatus() {
+      const container = document.getElementById('statusListContainer');
+      container.innerHTML = '';
+
+      if (items.length === 0) {
+        container.innerHTML = `<div class="bg-white p-6 text-center rounded-2xl text-xs text-slate-400">등록된 항목이 없습니다.</div>`;
+        return;
+      }
+
+      items.forEach(item => {
+        const remaining = Math.max(0, item.totalQty - item.wonCount);
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl p-3 shadow-sm border border-slate-200/90 flex items-center gap-3';
+
+        card.innerHTML = `
+          <!-- 제일 좌측: 등록한 이미지 또는 20개 아이콘 풀에서 지정된 아이콘 -->
+          <div class="w-14 h-14 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0 text-3xl shadow-inner">
+            ${item.image ? `<img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover">` : item.icon}
+          </div>
+
+          <!-- 중앙: 상품명 및 이벤트 내용 -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5">
+              <h3 class="font-extrabold text-slate-800 text-sm truncate">${item.name}</h3>
+              ${remaining === 0 ? `<span class="bg-rose-100 text-rose-600 text-[9px] font-bold px-1.5 py-0.5 rounded-full">소진</span>` : ''}
+            </div>
+            <p class="text-[11px] text-slate-500 mt-0.5 line-clamp-1">${item.eventText || '등록된 이벤트 없음'}</p>
+            <div class="w-full bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">
+              <div class="bg-indigo-500 h-full rounded-full" style="width: ${item.totalQty > 0 ? (item.wonCount / item.totalQty) * 100 : 0}%"></div>
+            </div>
+          </div>
+
+          <!-- 제일 우측: 총상품수와 당첨 상품수 표현 -->
+          <div class="flex flex-col items-end justify-center flex-shrink-0 text-right pl-1">
+            <span class="text-[10px] text-slate-400 font-medium">당첨 / 총수량</span>
+            <div class="text-sm font-black text-indigo-600">
+              ${item.wonCount} <span class="text-slate-400 text-xs font-bold">/ ${item.totalQty}</span>
+            </div>
+            <span class="text-[10px] text-emerald-600 font-bold mt-0.5">잔여 ${remaining}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function resetWinCountsOnly() {
+      items.forEach(it => { it.wonCount = 0; });
+      saveStorage();
+      renderStatus();
+      drawWheel();
+      showToast('당첨 기록이 초기화되었습니다.');
+    }
+
+    /* 반응형 및 초기 로드 */
+    window.addEventListener('resize', drawWheel);
+    window.onload = function() {
+      loadStorage();
+      drawWheel();
+      updateActiveBadge();
+    };
+  </script>
+</body>
+</html>
